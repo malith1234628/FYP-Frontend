@@ -97,6 +97,11 @@ export default function AgencyRegistrationPage() {
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [headOfficeAddress, setHeadOfficeAddress] = useState("");
+  const [password, setPassword] = useState("");
+  
+  // Loading and error states
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
   // Step 2 data
   const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
@@ -333,7 +338,62 @@ export default function AgencyRegistrationPage() {
     return form && form.questions.length > 0;
   });
 
-  const handleNext = () => {
+  const handleNext = async () => {
+    // Save services when moving from Step 2 to Step 3
+    if (currentStep === 2) {
+      setIsLoading(true);
+      setError("");
+
+      try {
+        const token = localStorage.getItem("authToken");
+        const user = JSON.parse(localStorage.getItem("user") || "{}");
+        
+        if (!token || !user.id) {
+          throw new Error("Please register your agency first (Step 1)");
+        }
+
+        // Format services data for the backend
+        const services = selectedCountries
+          .filter(country => country) // Remove empty countries
+          .map(country => ({
+            country: country,
+            processing_time: processingTimes[country] || "",
+            universities: selectedUniversities[country]?.filter(uni => uni) || []
+          }))
+          .filter(service => service.universities.length > 0); // Only include countries with universities
+
+        const response = await fetch("http://localhost:5003/auth/agency/services", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            user_id: user.id,
+            services: services
+          })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || "Failed to save services");
+        }
+
+        // Move to next step on success
+        setCurrentStep(currentStep + 1);
+        window.scrollTo(0, 0);
+      } catch (err) {
+        console.error('Save services error:', err);
+        setError(err instanceof Error ? err.message : "Failed to save services configuration");
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
+    // Normal navigation for other steps
     if (currentStep < 4) {
       setCurrentStep(currentStep + 1);
       
@@ -357,9 +417,54 @@ export default function AgencyRegistrationPage() {
     }
   };
 
-  const handleSubmit = () => {
-    alert("Agency registration submitted successfully! 🎉");
-    navigate("/agency-dashboard");
+  const handleSubmit = async () => {
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const payload = {
+        email: contactEmail,
+        password: password,
+        agency_name: agencyName,
+        phone: contactPhone,
+        address: headOfficeAddress,
+        country_of_operation: countryOfOperation,
+        license_number: businessRegistration,
+      };
+
+      const response = await fetch("http://localhost:5003/auth/register/agency", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorMessage = data.errors 
+          ? data.errors.join(', ') 
+          : data.message || data.error || "Registration failed";
+        throw new Error(errorMessage);
+      }
+
+      // Store token in localStorage
+      if (data.token) {
+        localStorage.setItem("authToken", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+      }
+
+      alert("Agency registration submitted successfully! 🎉");
+      navigate("/agency-dashboard");
+    } catch (err) {
+      console.error('Registration error:', err);
+      setError(err instanceof Error ? err.message : "An error occurred during registration");
+      // Scroll to top to show error
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const currentForm = currentUniversity ? universityForms[currentUniversity] : null;
@@ -466,6 +571,11 @@ export default function AgencyRegistrationPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm mb-6">
+                  {error}
+                </div>
+              )}
               {/* Step 1: Basic Information */}
               {currentStep === 1 && (
                 <div className="space-y-6">
@@ -534,6 +644,18 @@ export default function AgencyRegistrationPage() {
                       rows={3}
                     />
                   </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Password *</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="Create a secure password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                    <p className="text-xs text-gray-500">Minimum 6 characters</p>
+                  </div>
                 </div>
               )}
 
@@ -542,69 +664,137 @@ export default function AgencyRegistrationPage() {
                 <div className="space-y-6">
                   <div className="space-y-3">
                     <Label>Countries You Provide Visa Services For *</Label>
-                    <p className="text-sm text-gray-600">Select all countries where you can assist with visa applications</p>
-                    <div className="grid grid-cols-2 gap-3">
-                      {countries.map(country => (
-                        <div key={country} className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50">
-                          <Checkbox
-                            id={country}
-                            checked={selectedCountries.includes(country)}
-                            onCheckedChange={() => handleCountrySelect(country)}
-                          />
-                          <label
-                            htmlFor={country}
-                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    <p className="text-sm text-gray-600">Select countries where you can assist with visa applications</p>
+                    
+                    {selectedCountries.map((country, index) => (
+                      <div key={index} className="space-y-4 p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1">
+                            <Label htmlFor={`country-${index}`}>Country</Label>
+                            <select
+                              id={`country-${index}`}
+                              className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring mt-1"
+                              value={country}
+                              onChange={(e) => {
+                                const newCountries = [...selectedCountries];
+                                newCountries[index] = e.target.value;
+                                setSelectedCountries(newCountries);
+                              }}
+                            >
+                              <option value="">Select country</option>
+                              {countries.map(c => (
+                                <option key={c} value={c} disabled={selectedCountries.includes(c) && c !== country}>
+                                  {c}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const newCountries = selectedCountries.filter((_, i) => i !== index);
+                              setSelectedCountries(newCountries);
+                              const newUniversities = {...selectedUniversities};
+                              delete newUniversities[country];
+                              setSelectedUniversities(newUniversities);
+                              const newProcessingTimes = {...processingTimes};
+                              delete newProcessingTimes[country];
+                              setProcessingTimes(newProcessingTimes);
+                            }}
+                            className="mt-6"
                           >
-                            {country}
-                          </label>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
-                      ))}
-                    </div>
-                  </div>
 
-                  {selectedCountries.length > 0 && (
-                    <div className="space-y-6 pt-4 border-t">
-                      {selectedCountries.map(country => (
-                        <div key={country} className="space-y-4 p-4 bg-blue-50 rounded-lg">
-                          <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                            <Globe className="w-5 h-5 text-blue-600" />
-                            {country}
-                          </h3>
-                          
-                          <div className="space-y-2">
-                            <Label>Universities Supported *</Label>
-                            <div className="grid grid-cols-1 gap-2 bg-white p-3 rounded-lg max-h-48 overflow-y-auto">
-                              {universities[country as keyof typeof universities]?.map(university => (
-                                <div key={university} className="flex items-center space-x-2">
-                                  <Checkbox
-                                    id={`${country}-${university}`}
-                                    checked={selectedUniversities[country]?.includes(university) || false}
-                                    onCheckedChange={() => handleUniversitySelect(country, university)}
-                                  />
-                                  <label
-                                    htmlFor={`${country}-${university}`}
-                                    className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                        {country && (
+                          <>
+                            <div className="space-y-2">
+                              <Label>Universities Supported *</Label>
+                              <p className="text-xs text-gray-600">Add universities for {country}</p>
+                              
+                              {selectedUniversities[country]?.map((university, uniIndex) => (
+                                <div key={uniIndex} className="flex items-center gap-3">
+                                  <select
+                                    className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                    value={university}
+                                    onChange={(e) => {
+                                      const newUniversities = {...selectedUniversities};
+                                      newUniversities[country][uniIndex] = e.target.value;
+                                      setSelectedUniversities(newUniversities);
+                                    }}
                                   >
-                                    {university}
-                                  </label>
+                                    <option value="">Select university</option>
+                                    {universities[country as keyof typeof universities]?.map(uni => (
+                                      <option 
+                                        key={uni} 
+                                        value={uni}
+                                        disabled={selectedUniversities[country]?.includes(uni) && uni !== university}
+                                      >
+                                        {uni}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      const newUniversities = {...selectedUniversities};
+                                      newUniversities[country] = newUniversities[country].filter((_, i) => i !== uniIndex);
+                                      setSelectedUniversities(newUniversities);
+                                    }}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
                                 </div>
                               ))}
-                            </div>
-                          </div>
 
-                          <div className="space-y-2">
-                            <Label htmlFor={`processing-${country}`}>Average Processing Time *</Label>
-                            <Input
-                              id={`processing-${country}`}
-                              placeholder="e.g., 4-6 weeks"
-                              value={processingTimes[country] || ""}
-                              onChange={(e) => setProcessingTimes({...processingTimes, [country]: e.target.value})}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const newUniversities = {...selectedUniversities};
+                                  if (!newUniversities[country]) {
+                                    newUniversities[country] = [];
+                                  }
+                                  newUniversities[country].push('');
+                                  setSelectedUniversities(newUniversities);
+                                }}
+                                className="w-full mt-2"
+                              >
+                                <Plus className="w-4 h-4 mr-2" />
+                                Add University
+                              </Button>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor={`processing-${index}`}>Average Processing Time *</Label>
+                              <Input
+                                id={`processing-${index}`}
+                                placeholder="e.g., 4-6 weeks"
+                                value={processingTimes[country] || ""}
+                                onChange={(e) => setProcessingTimes({...processingTimes, [country]: e.target.value})}
+                              />
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ))}
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setSelectedCountries([...selectedCountries, ''])}
+                      className="w-full"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Country
+                    </Button>
+                  </div>
 
                   <div className="space-y-2 pt-4 border-t">
                     <Label htmlFor="serviceDescription">Service Description *</Label>
@@ -691,14 +881,15 @@ export default function AgencyRegistrationPage() {
                 <Button
                   onClick={handleNext}
                   disabled={
+                    isLoading ||
                     (currentStep === 1 && !canProceedStep1) ||
                     (currentStep === 2 && !canProceedStep2) ||
                     (currentStep === 3 && !canProceedStep3)
                   }
                   className="ml-auto flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
                 >
-                  Next Step
-                  <ArrowRight className="w-4 h-4" />
+                  {isLoading && currentStep === 2 ? "Saving..." : "Next Step"}
+                  {!isLoading && <ArrowRight className="w-4 h-4" />}
                 </Button>
               </div>
             </CardContent>
@@ -1104,10 +1295,10 @@ export default function AgencyRegistrationPage() {
               
               <Button
                 onClick={handleSubmit}
-                disabled={!canProceedStep4}
+                disabled={!canProceedStep4 || isLoading}
                 className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
               >
-                Complete Registration 🎉
+                {isLoading ? "Submitting..." : "Complete Registration 🎉"}
               </Button>
             </div>
           </div>

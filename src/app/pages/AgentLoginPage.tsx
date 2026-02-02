@@ -18,7 +18,7 @@ export default function AgentLoginPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // TODO: Add authentication logic
-    navigate("/agent-dashboard");
+    navigate("/agency-dashboard");
   };
 
   return (

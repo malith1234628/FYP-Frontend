@@ -12,17 +12,49 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState(false);
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulate incorrect password error on first attempt
-    if (!error && password.length > 0) {
-      setError(true);
-      return;
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const payload = {
+        email,
+        password,
+      };
+
+      const response = await fetch("http://localhost:5003/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorMessage = data.message || data.error || "Login failed";
+        throw new Error(errorMessage);
+      }
+
+      // Store token in localStorage
+      if (data.token) {
+        localStorage.setItem("authToken", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+      }
+
+      // Navigate to dashboard on success
+      navigate("/dashboard");
+    } catch (err) {
+      console.error('Login error:', err);
+      setError(err instanceof Error ? err.message : "An error occurred during login");
+    } finally {
+      setIsLoading(false);
     }
-    // Navigate to dashboard on success
-    navigate("/dashboard");
   };
 
   return (
@@ -64,7 +96,7 @@ export default function LoginPage() {
                   <Alert className="bg-red-50 border-red-200 rounded-lg">
                     <AlertCircle className="h-4 w-4 text-red-600" />
                     <AlertDescription className="text-red-800 font-medium">
-                      Incorrect email or password. Please try again.
+                      {error}
                     </AlertDescription>
                   </Alert>
                 )}
@@ -81,7 +113,7 @@ export default function LoginPage() {
                       value={email}
                       onChange={(e) => {
                         setEmail(e.target.value);
-                        setError(false);
+                        setError("");
                       }}
                       className="pl-12 h-12 border-2 border-gray-200 hover:border-blue-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-lg transition-all duration-200 bg-gray-50 focus:bg-white"
                       required
@@ -101,7 +133,7 @@ export default function LoginPage() {
                       value={password}
                       onChange={(e) => {
                         setPassword(e.target.value);
-                        setError(false);
+                        setError("");
                       }}
                       className="pl-12 h-12 border-2 border-gray-200 hover:border-blue-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-lg transition-all duration-200 bg-gray-50 focus:bg-white"
                       required
@@ -124,9 +156,10 @@ export default function LoginPage() {
                 <Button 
                   type="submit" 
                   className="w-full h-12 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 font-bold text-lg text-white rounded-lg shadow-lg hover:shadow-blue-500/40 transition-all duration-200 transform hover:scale-105 flex items-center justify-center gap-2 mt-6"
+                  disabled={isLoading}
                 >
-                  Sign In
-                  <ArrowRight className="w-5 h-5" />
+                  {isLoading ? "Signing In..." : "Sign In"}
+                  {!isLoading && <ArrowRight className="w-5 h-5" />}
                 </Button>
                 
                 {/* Divider */}

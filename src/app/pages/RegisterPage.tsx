@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { Button } from "@/app/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card";
-import { Input } from "@/app/components/ui/input";
-import { Label } from "@/app/components/ui/label";
+import { Button } from "../components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
 import { useNavigate } from "react-router-dom";
-import { GraduationCap, User, Mail, Lock } from "lucide-react";
-import Header from "@/app/components/Header";
+import { GraduationCap, User, Mail, Lock, Phone } from "lucide-react";
+import Header from "../components/Header";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -13,13 +13,51 @@ export default function RegisterPage() {
     firstName: "",
     lastName: "",
     email: "",
+    phone: "",
     password: "",
   });
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Navigate to onboarding after registration
-    navigate("/onboarding");
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const payload = {
+        email: formData.email,
+        password: formData.password,
+        full_name: `${formData.firstName} ${formData.lastName}`,
+        phone: formData.phone,
+      };
+
+      const response = await fetch("http://localhost:5003/auth/register/student", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        // Show detailed error message from backend
+        const errorMessage = data.errors 
+          ? data.errors.join(', ') 
+          : data.message || data.error || "Registration failed";
+        throw new Error(errorMessage);
+      }
+
+      // Navigate to onboarding after successful registration
+      navigate("/onboarding");
+    } catch (err) {
+      console.error('Registration error:', err);
+      setError(err instanceof Error ? err.message : "An error occurred during registration");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -44,6 +82,11 @@ export default function RegisterPage() {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
+                {error && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                    {error}
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="firstName" className="text-gray-900 font-semibold">First Name</Label>
@@ -96,6 +139,23 @@ export default function RegisterPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="phone" className="text-gray-900 font-semibold">Phone Number</Label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                    <Input
+                      id="phone"
+                      type="tel"
+                      placeholder="+1 (555) 123-4567"
+                      value={formData.phone}
+                      onChange={(e) =>
+                        setFormData({ ...formData, phone: e.target.value })
+                      }
+                      className="pl-10 h-12"
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="password" className="text-gray-900 font-semibold">Password</Label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
@@ -115,8 +175,9 @@ export default function RegisterPage() {
                 <Button 
                   type="submit" 
                   className="w-full h-12 bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 font-semibold text-lg"
+                  disabled={isLoading}
                 >
-                  Create Account
+                  {isLoading ? "Creating Account..." : "Create Account"}
                 </Button>
                 <div className="text-center text-sm text-gray-600 pt-4">
                   Already have an account?{" "}
