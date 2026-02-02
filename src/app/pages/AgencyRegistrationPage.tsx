@@ -309,7 +309,7 @@ export default function AgencyRegistrationPage() {
 
   const updateFormMetadata = (updates: Partial<Pick<UniversityForm, 'formTitle' | 'formDescription'>>) => {
     if (!currentUniversity) return;
-    
+
     const currentForm = universityForms[currentUniversity];
     if (!currentForm) return;
 
@@ -322,7 +322,61 @@ export default function AgencyRegistrationPage() {
     });
   };
 
-  const canProceedStep1 = agencyName && businessRegistration && countryOfOperation && 
+  const saveCurrentForm = async () => {
+    if (!currentUniversity) {
+      setError("No university selected");
+      return;
+    }
+
+    const currentForm = universityForms[currentUniversity];
+    if (!currentForm || currentForm.questions.length === 0) {
+      setError("Please add at least one question before saving");
+      return;
+    }
+
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const token = localStorage.getItem("authToken");
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+
+      if (!token || !user.id) {
+        throw new Error("Authentication required");
+      }
+
+      // Save only the current form
+      const response = await fetch("http://localhost:5003/auth/agency/forms", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          user_id: user.id,
+          university_forms: {
+            [currentUniversity]: currentForm
+          }
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to save form");
+      }
+
+      alert(`Form for ${currentUniversity} saved successfully! ✓`);
+    } catch (err) {
+      console.error('Save form error:', err);
+      setError(err instanceof Error ? err.message : "Failed to save form");
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const canProceedStep1 = agencyName && businessRegistration && countryOfOperation &&
                           contactEmail && contactPhone && headOfficeAddress;
 
   const canProceedStep2 = selectedCountries.length > 0 && serviceDescription &&
@@ -339,6 +393,58 @@ export default function AgencyRegistrationPage() {
   });
 
   const handleNext = async () => {
+    // Register agency when moving from Step 1 to Step 2
+    if (currentStep === 1) {
+      setIsLoading(true);
+      setError("");
+
+      try {
+        const payload = {
+          email: contactEmail,
+          password: password,
+          agency_name: agencyName,
+          phone: contactPhone,
+          address: headOfficeAddress,
+          country_of_operation: countryOfOperation,
+          license_number: businessRegistration,
+        };
+
+        const response = await fetch("http://localhost:5003/auth/register/agency", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          const errorMessage = data.errors
+            ? data.errors.join(', ')
+            : data.message || data.error || "Registration failed";
+          throw new Error(errorMessage);
+        }
+
+        // Store token in localStorage
+        if (data.token) {
+          localStorage.setItem("authToken", data.token);
+          localStorage.setItem("user", JSON.stringify(data.user));
+        }
+
+        // Move to next step on success
+        setCurrentStep(currentStep + 1);
+        window.scrollTo(0, 0);
+      } catch (err) {
+        console.error('Registration error:', err);
+        setError(err instanceof Error ? err.message : "An error occurred during registration");
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
     // Save services when moving from Step 2 to Step 3
     if (currentStep === 2) {
       setIsLoading(true);
@@ -347,7 +453,7 @@ export default function AgencyRegistrationPage() {
       try {
         const token = localStorage.getItem("authToken");
         const user = JSON.parse(localStorage.getItem("user") || "{}");
-        
+
         if (!token || !user.id) {
           throw new Error("Please register your agency first (Step 1)");
         }
@@ -393,10 +499,60 @@ export default function AgencyRegistrationPage() {
       return;
     }
 
+    // Save statistics when moving from Step 3 to Step 4
+    if (currentStep === 3) {
+      setIsLoading(true);
+      setError("");
+
+      try {
+        const token = localStorage.getItem("authToken");
+        const user = JSON.parse(localStorage.getItem("user") || "{}");
+
+        if (!token || !user.id) {
+          throw new Error("Authentication required. Please log in.");
+        }
+
+        const response = await fetch("http://localhost:5003/auth/agency/statistics", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            user_id: user.id,
+            total_students_handled: parseInt(totalStudents),
+            total_visas_approved: parseInt(totalVisasApproved)
+          })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || "Failed to save statistics");
+        }
+
+        // Move to next step on success and initialize form for first university
+        setCurrentStep(currentStep + 1);
+        const allUnis = getAllSelectedUniversities();
+        if (allUnis.length > 0 && !currentUniversity) {
+          setCurrentUniversity(allUnis[0]);
+          initializeFormForUniversity(allUnis[0]);
+        }
+        window.scrollTo(0, 0);
+      } catch (err) {
+        console.error('Save statistics error:', err);
+        setError(err instanceof Error ? err.message : "Failed to save performance statistics");
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
     // Normal navigation for other steps
     if (currentStep < 4) {
       setCurrentStep(currentStep + 1);
-      
+
       // Initialize form for first university when entering step 4
       if (currentStep === 3) {
         const allUnis = getAllSelectedUniversities();
@@ -405,7 +561,7 @@ export default function AgencyRegistrationPage() {
           initializeFormForUniversity(allUnis[0]);
         }
       }
-      
+
       window.scrollTo(0, 0);
     }
   };
@@ -418,49 +574,47 @@ export default function AgencyRegistrationPage() {
   };
 
   const handleSubmit = async () => {
+    // At this point, agency is already registered (in Step 1)
+    // Services are saved (Step 2)
+    // Statistics are saved (Step 3)
+    // Now save Forms (Step 4) and complete registration
+
     setIsLoading(true);
     setError("");
 
     try {
-      const payload = {
-        email: contactEmail,
-        password: password,
-        agency_name: agencyName,
-        phone: contactPhone,
-        address: headOfficeAddress,
-        country_of_operation: countryOfOperation,
-        license_number: businessRegistration,
-      };
+      const token = localStorage.getItem("authToken");
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
 
-      const response = await fetch("http://localhost:5003/auth/register/agency", {
+      if (!token || !user.id) {
+        throw new Error("Authentication required. Please restart registration.");
+      }
+
+      // Save university forms
+      const response = await fetch("http://localhost:5003/auth/agency/forms", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          user_id: user.id,
+          university_forms: universityForms
+        })
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        const errorMessage = data.errors 
-          ? data.errors.join(', ') 
-          : data.message || data.error || "Registration failed";
-        throw new Error(errorMessage);
+        throw new Error(data.message || "Failed to save university forms");
       }
 
-      // Store token in localStorage
-      if (data.token) {
-        localStorage.setItem("authToken", data.token);
-        localStorage.setItem("user", JSON.stringify(data.user));
-      }
-
-      alert("Agency registration submitted successfully! 🎉");
+      // Show success message
+      alert("Agency registration completed successfully! 🎉");
       navigate("/agency-dashboard");
     } catch (err) {
-      console.error('Registration error:', err);
-      setError(err instanceof Error ? err.message : "An error occurred during registration");
-      // Scroll to top to show error
+      console.error('Form submission error:', err);
+      setError(err instanceof Error ? err.message : "An error occurred while saving forms");
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setIsLoading(false);
@@ -888,7 +1042,9 @@ export default function AgencyRegistrationPage() {
                   }
                   className="ml-auto flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
                 >
-                  {isLoading && currentStep === 2 ? "Saving..." : "Next Step"}
+                  {isLoading && (currentStep === 1 || currentStep === 2 || currentStep === 3)
+                    ? currentStep === 1 ? "Registering..." : "Saving..."
+                    : "Next Step"}
                   {!isLoading && <ArrowRight className="w-4 h-4" />}
                 </Button>
               </div>
@@ -943,10 +1099,12 @@ export default function AgencyRegistrationPage() {
                 <Button
                   variant="outline"
                   size="sm"
+                  onClick={saveCurrentForm}
+                  disabled={isLoading || !currentForm || currentForm.questions.length === 0}
                   className="text-green-600 border-green-600 hover:bg-green-50"
                 >
                   <Save className="w-4 h-4 mr-2" />
-                  Save
+                  {isLoading ? "Saving..." : "Save"}
                 </Button>
               </div>
             </div>

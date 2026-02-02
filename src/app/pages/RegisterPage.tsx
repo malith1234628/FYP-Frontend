@@ -44,10 +44,15 @@ export default function RegisterPage() {
 
       if (!response.ok) {
         // Show detailed error message from backend
-        const errorMessage = data.errors 
-          ? data.errors.join(', ') 
+        const errorMessage = data.errors
+          ? data.errors.join(', ')
           : data.message || data.error || "Registration failed";
         throw new Error(errorMessage);
+      }
+
+      // Save token to localStorage for authentication
+      if (data.token) {
+        localStorage.setItem("token", data.token);
       }
 
       // Navigate to onboarding after successful registration

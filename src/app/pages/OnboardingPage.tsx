@@ -1,22 +1,112 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { Label } from "@/app/components/ui/label";
 import { useNavigate } from "react-router-dom";
-import { 
-  GraduationCap, 
-  Upload, 
-  FileText, 
-  Check
+import {
+  GraduationCap,
+  Upload,
+  FileText,
+  Check,
+  AlertCircle
 } from "lucide-react";
 import { Progress } from "@/app/components/ui/progress";
 
 export default function OnboardingPage() {
   const navigate = useNavigate();
-  
+
   // Document uploads
-  const [passportUploaded, setPassportUploaded] = useState(false);
-  const [cvUploaded, setCvUploaded] = useState(false);
+  const [passportFile, setPassportFile] = useState<File | null>(null);
+  const [cvFile, setCvFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [error, setError] = useState("");
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // Get user ID from token on component mount
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      navigate("/login");
+      return;
+    }
+
+    try {
+      // Decode JWT token to get user ID
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      setUserId(payload.id);
+    } catch (err) {
+      console.error("Failed to decode token:", err);
+      navigate("/login");
+    }
+  }, [navigate]);
+
+  const handlePassportChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file size (10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        setError("Passport file size must be less than 10MB");
+        return;
+      }
+      setPassportFile(file);
+      setError("");
+    }
+  };
+
+  const handleCvChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file size (10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        setError("CV file size must be less than 10MB");
+        return;
+      }
+      setCvFile(file);
+      setError("");
+    }
+  };
+
+  const handleUploadAndContinue = async () => {
+    if (!passportFile || !cvFile) {
+      setError("Please upload both passport and CV to continue");
+      return;
+    }
+
+    if (!userId) {
+      setError("User ID not found. Please login again.");
+      return;
+    }
+
+    setIsUploading(true);
+    setError("");
+
+    try {
+      // Create FormData for file upload
+      const formData = new FormData();
+      formData.append("userId", userId);
+      formData.append("passport", passportFile);
+      formData.append("cv", cvFile);
+
+      const response = await fetch("http://localhost:5003/api/students/documents/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to upload documents");
+      }
+
+      // Navigate to dashboard on success
+      navigate("/dashboard");
+    } catch (err) {
+      console.error("Upload error:", err);
+      setError(err instanceof Error ? err.message : "Failed to upload documents");
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
@@ -48,25 +138,32 @@ export default function OnboardingPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
+                <AlertCircle className="w-4 h-4" />
+                {error}
+              </div>
+            )}
+
             {/* Passport */}
             <div className="space-y-2">
               <Label htmlFor="passport" className="flex items-center gap-2 text-base">
                 <FileText className="w-4 h-4" />
-                Passport
+                Passport <span className="text-red-500">*</span>
               </Label>
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-primary transition-colors">
                 <input
                   type="file"
                   id="passport"
                   className="hidden"
-                  onChange={() => setPassportUploaded(true)}
-                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={handlePassportChange}
+                  accept=".pdf,.jpg,.jpeg,.png,.gif,image/jpeg,image/jpg,image/png,image/gif,application/pdf"
                 />
                 <label htmlFor="passport" className="cursor-pointer">
-                  {passportUploaded ? (
+                  {passportFile ? (
                     <div className="flex items-center justify-center gap-2 text-green-600">
                       <Check className="w-5 h-5" />
-                      <span className="font-medium">Passport uploaded successfully</span>
+                      <span className="font-medium">{passportFile.name}</span>
                     </div>
                   ) : (
                     <div className="flex flex-col items-center gap-2">
@@ -85,21 +182,21 @@ export default function OnboardingPage() {
             <div className="space-y-2">
               <Label htmlFor="cv" className="flex items-center gap-2 text-base">
                 <FileText className="w-4 h-4" />
-                CV / Resume
+                CV / Resume <span className="text-red-500">*</span>
               </Label>
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-primary transition-colors">
                 <input
                   type="file"
                   id="cv"
                   className="hidden"
-                  onChange={() => setCvUploaded(true)}
-                  accept=".pdf,.doc,.docx"
+                  onChange={handleCvChange}
+                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 />
                 <label htmlFor="cv" className="cursor-pointer">
-                  {cvUploaded ? (
+                  {cvFile ? (
                     <div className="flex items-center justify-center gap-2 text-green-600">
                       <Check className="w-5 h-5" />
-                      <span className="font-medium">CV uploaded successfully</span>
+                      <span className="font-medium">{cvFile.name}</span>
                     </div>
                   ) : (
                     <div className="flex flex-col items-center gap-2">
@@ -117,11 +214,18 @@ export default function OnboardingPage() {
         </Card>
 
         <Button
-          onClick={() => navigate("/dashboard")}
+          onClick={handleUploadAndContinue}
+          disabled={!passportFile || !cvFile || isUploading}
           className="w-full bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 h-12"
         >
-          Continue to Dashboard
+          {isUploading ? "Uploading Documents..." : "Upload & Continue to Dashboard"}
         </Button>
+
+        {(!passportFile || !cvFile) && (
+          <p className="text-center text-sm text-gray-500 mt-4">
+            Both documents are required to continue
+          </p>
+        )}
       </div>
     </div>
   );
