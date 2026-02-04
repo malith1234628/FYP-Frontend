@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { useNavigate } from "react-router-dom";
@@ -13,7 +14,8 @@ import {
   CreditCard,
   MessageCircle,
   Lock,
-  Circle
+  Circle,
+  Play
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -26,9 +28,38 @@ import {
 import { Avatar, AvatarFallback } from "@/app/components/ui/avatar";
 import { Badge } from "@/app/components/ui/badge";
 import { Alert, AlertDescription } from "@/app/components/ui/alert";
+import { 
+  hasActiveApplication, 
+  getCurrentStepRoute, 
+  getApplicationProgress,
+  getStepName,
+  getProgressPercentage 
+} from "@/app/utils/applicationProgress";
 
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const [hasInProgressApp, setHasInProgressApp] = useState(false);
+  const [currentStep, setCurrentStep] = useState("");
+  const [progressPercentage, setProgressPercentage] = useState(0);
+
+  useEffect(() => {
+    // Check if there's an application in progress
+    const activeApp = hasActiveApplication();
+    setHasInProgressApp(activeApp);
+    
+    if (activeApp) {
+      const progress = getApplicationProgress();
+      if (progress) {
+        setCurrentStep(getStepName(progress.currentStep));
+        setProgressPercentage(getProgressPercentage());
+      }
+    }
+  }, []);
+
+  const handleContinueApplication = () => {
+    const route = getCurrentStepRoute();
+    navigate(route);
+  };
 
   const documents = [
     { name: "Passport", status: "Verified", date: "Jan 10, 2026" },
@@ -86,15 +117,47 @@ export default function DashboardPage() {
           <p className="text-gray-600">Track your visa application progress and take next actions</p>
         </div>
 
-        {/* Start Application Button */}
+        {/* Start/Continue Application Buttons */}
         <div className="mb-6">
-          <Button 
-            onClick={() => navigate("/apply-visa")}
-            className="h-14 px-8 bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 font-semibold text-lg"
-          >
-            <GraduationCap className="w-6 h-6 mr-2" />
-            Start New Application
-          </Button>
+          {hasInProgressApp ? (
+            <div className="space-y-4">
+              <Alert className="bg-blue-50 border-blue-200">
+                <Clock className="h-5 w-5 text-blue-600" />
+                <AlertDescription className="text-blue-800">
+                  <span className="font-semibold">Application in Progress</span>
+                  <br />
+                  You have an unfinished application. Current step: <span className="font-semibold">{currentStep}</span> ({progressPercentage}% complete)
+                </AlertDescription>
+              </Alert>
+              
+              <div className="flex gap-4">
+                <Button 
+                  onClick={handleContinueApplication}
+                  className="h-14 px-8 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 font-semibold text-lg"
+                >
+                  <Play className="w-6 h-6 mr-2" />
+                  Continue Application
+                </Button>
+                
+                <Button 
+                  onClick={() => navigate("/apply-visa")}
+                  variant="outline"
+                  className="h-14 px-8 font-semibold text-lg"
+                >
+                  <GraduationCap className="w-6 h-6 mr-2" />
+                  Start New Application
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button 
+              onClick={() => navigate("/apply-visa")}
+              className="h-14 px-8 bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 font-semibold text-lg"
+            >
+              <GraduationCap className="w-6 h-6 mr-2" />
+              Start New Application
+            </Button>
+          )}
         </div>
 
         {/* 2-Column Layout */}

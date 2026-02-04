@@ -8,25 +8,72 @@ import { Progress } from "@/app/components/ui/progress";
 
 export default function DocumentUploadPage() {
   const navigate = useNavigate();
-  const [uploads, setUploads] = useState({
-    sop: false,
-    ielts: false,
-    birthCert: false,
-    funds: false,
+
+  const [files, setFiles] = useState<Record<string, File | null>>({
+    sop: null,
+    ielts: null,
+    birthCert: null,
+    funds: null,
+    olCert: null,
+    alCert: null,
   });
 
-  const handleUpload = (doc: keyof typeof uploads) => {
-    setUploads({ ...uploads, [doc]: true });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleFileSelect = (doc: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setFiles((prev) => ({ ...prev, [doc]: file }));
   };
 
-  const allUploaded = Object.values(uploads).every(Boolean);
+  const allUploaded = Object.values(files).every(Boolean);
 
   const documents = [
-    { id: "sop", name: "Statement of Purpose (SOP)", uploaded: uploads.sop },
-    { id: "ielts", name: "IELTS Certificate", uploaded: uploads.ielts },
-    { id: "birthCert", name: "Birth Certificate", uploaded: uploads.birthCert },
-    { id: "funds", name: "Proof of Funds", uploaded: uploads.funds },
+    { id: "sop",       name: "Statement of Purpose (SOP)" },
+    { id: "ielts",     name: "IELTS Certificate" },
+    { id: "birthCert", name: "Birth Certificate" },
+    { id: "funds",     name: "Proof of Funds" },
+    { id: "olCert",    name: "G.C.E. Ordinary Level (O/L) Certificate" },
+    { id: "alCert",    name: "G.C.E. Advanced Level (A/L) Certificate" },
   ];
+
+  const handleVerify = async () => {
+    setError(null);
+    setIsSubmitting(true);
+
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setError("Session expired. Please log in again.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      const formData = new FormData();
+      for (const [field, file] of Object.entries(files)) {
+        if (file) formData.append(field, file);
+      }
+
+      const response = await fetch("http://localhost:5003/api/students/visa-documents", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.message || "Failed to upload documents.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      navigate("/document-verification");
+    } catch (err) {
+      setError("Network error. Please check your connection and try again.");
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -50,40 +97,49 @@ export default function DocumentUploadPage() {
           </div>
         </div>
 
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm mb-4">
+            {error}
+          </div>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle>Required Documents</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {documents.map((doc) => (
-              <div key={doc.id} className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <FileText className="w-4 h-4" />
-                  {doc.name}
-                </Label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary transition-colors">
-                  <input
-                    type="file"
-                    id={doc.id}
-                    className="hidden"
-                    onChange={() => handleUpload(doc.id as keyof typeof uploads)}
-                  />
-                  <label htmlFor={doc.id} className="cursor-pointer">
-                    {doc.uploaded ? (
-                      <div className="flex items-center justify-center gap-2 text-secondary">
-                        <Check className="w-5 h-5" />
-                        <span>Uploaded successfully</span>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center gap-2">
-                        <Upload className="w-6 h-6 text-gray-400" />
-                        <p className="text-sm text-gray-600">Click to upload</p>
-                      </div>
-                    )}
-                  </label>
+            {documents.map((doc) => {
+              const selected = files[doc.id];
+              return (
+                <div key={doc.id} className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <FileText className="w-4 h-4" />
+                    {doc.name}
+                  </Label>
+                  <div className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${selected ? "border-green-400 bg-green-50" : "border-gray-300 hover:border-primary"}`}>
+                    <input
+                      type="file"
+                      id={doc.id}
+                      className="hidden"
+                      onChange={(e) => handleFileSelect(doc.id, e)}
+                    />
+                    <label htmlFor={doc.id} className="cursor-pointer">
+                      {selected ? (
+                        <div className="flex items-center justify-center gap-2 text-green-700">
+                          <Check className="w-5 h-5" />
+                          <span className="text-sm font-medium">{selected.name}</span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-2">
+                          <Upload className="w-6 h-6 text-gray-400" />
+                          <p className="text-sm text-gray-600">Click to upload</p>
+                        </div>
+                      )}
+                    </label>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </CardContent>
         </Card>
 
@@ -92,11 +148,11 @@ export default function DocumentUploadPage() {
             Back
           </Button>
           <Button
-            onClick={() => navigate("/document-verification")}
-            disabled={!allUploaded}
+            onClick={handleVerify}
+            disabled={!allUploaded || isSubmitting}
             className="flex-1"
           >
-            Verify Documents
+            {isSubmitting ? "Uploading..." : "Verify Documents"}
           </Button>
         </div>
       </div>

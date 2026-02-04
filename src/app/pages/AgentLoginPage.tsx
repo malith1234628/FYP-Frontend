@@ -10,15 +10,42 @@ import Header from "@/app/components/Header";
 export default function AgentLoginPage() {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
   const [formData, setFormData] = useState({
     email: "",
     password: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Add authentication logic
-    navigate("/agency-dashboard");
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch("http://localhost:5003/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: formData.email, password: formData.password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || data.error || "Login failed");
+      }
+
+      if (data.token) {
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+      }
+
+      navigate("/agency-dashboard");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred during login");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -41,6 +68,11 @@ export default function AgentLoginPage() {
           
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-5">
+              {error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-sm text-red-700">{error}</p>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-sm font-semibold text-gray-700">
                   Email Address
@@ -98,12 +130,13 @@ export default function AgentLoginPage() {
                 </button>
               </div>
 
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
+                disabled={isLoading}
                 className="w-full h-11 bg-purple-600 hover:bg-purple-700 text-white font-semibold"
               >
                 <Users className="w-5 h-5 mr-2" />
-                Login to Agent Dashboard
+                {isLoading ? "Logging in..." : "Login to Agent Dashboard"}
               </Button>
             </form>
 

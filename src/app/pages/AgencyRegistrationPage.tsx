@@ -33,29 +33,69 @@ import {
 import { Checkbox } from "@/app/components/ui/checkbox";
 
 const countries = [
+  "Austria",
+  "Australia",
+  "Belgium",
+  "Canada",
+  "China",
+  "Denmark",
+  "Finland",
+  "France",
+  "Germany",
+  "India",
+  "Italy",
+  "Japan",
+  "Malaysia",
+  "Netherlands",
+  "New Zealand",
+  "Norway",
+  "Poland",
+  "Portugal",
+  "Qatar",
+  "Russia",
+  "Singapore",
+  "South Korea",
+  "Spain",
+  "Sweden",
+  "Switzerland",
+  "Ukraine",
+  "United Arab Emirates",
   "United Kingdom",
   "United States",
-  "Canada",
-  "Australia",
-  "Germany",
-  "France",
-  "New Zealand",
-  "Netherlands",
-  "Ireland",
-  "Singapore"
+  "Vietnam"
 ];
 
 const universities = {
-  "United Kingdom": ["University of Oxford", "University of Cambridge", "Imperial College London", "UCL", "King's College London"],
-  "United States": ["Harvard University", "MIT", "Stanford University", "Yale University", "Princeton University"],
-  "Canada": ["University of Toronto", "McGill University", "UBC", "McMaster University", "University of Alberta"],
-  "Australia": ["University of Melbourne", "ANU", "University of Sydney", "UNSW", "University of Queensland"],
-  "Germany": ["TU Munich", "LMU Munich", "Heidelberg University", "Humboldt University", "RWTH Aachen"],
-  "France": ["Sorbonne University", "École Polytechnique", "Sciences Po", "ENS Paris", "University of Paris"],
-  "New Zealand": ["University of Auckland", "University of Otago", "Victoria University", "University of Canterbury", "Massey University"],
-  "Netherlands": ["University of Amsterdam", "Utrecht University", "Leiden University", "TU Delft", "Erasmus University"],
-  "Ireland": ["Trinity College Dublin", "UCD", "UCC", "NUI Galway", "DCU"],
-  "Singapore": ["NUS", "NTU", "SMU", "SUTD", "SIM"]
+  "Austria": ["University of Vienna", "TU Wien", "TU Graz", "Johannes Kepler University", "University of Salzburg", "University of Innsbruck", "University of Klagenfurt", "Montanuniversität Leoben", "FH Vorarlberg"],
+  "Australia": ["University of Melbourne", "Australian National University", "University of Sydney", "Monash University", "University of Queensland", "University of Western Australia", "University of Adelaide", "RMIT University", "Deakin University", "La Trobe University"],
+  "Belgium": ["KU Leuven", "Ghent University", "Vrije Universiteit Brussel"],
+  "Canada": ["University of Toronto", "McGill University", "University of British Columbia", "University of Alberta", "McMaster University", "University of Waterloo", "Western University", "Queen's University", "York University"],
+  "China": ["Tsinghua University", "Peking University", "Shanghai Jiao Tong University", "Zhejiang University", "Fudan University"],
+  "Denmark": ["University of Copenhagen", "Technical University of Denmark", "Aarhus University"],
+  "Finland": ["University of Helsinki", "Aalto University", "Tampere University"],
+  "France": ["Sorbonne University", "École Polytechnique", "Sciences Po", "University of Paris", "Paris-Saclay University", "University of Lyon"],
+  "Germany": ["Technical University of Munich", "Ludwig Maximilian University of Munich", "RWTH Aachen University", "Heidelberg University", "Humboldt University of Berlin", "Free University of Berlin", "University of Freiburg", "University of Stuttgart", "Karlsruhe Institute of Technology"],
+  "India": ["Indian Institute of Technology Delhi", "Indian Institute of Technology Bombay", "Indian Institute of Science", "University of Delhi"],
+  "Italy": ["University of Bologna", "Politecnico di Milano", "Sapienza University of Rome", "University of Padua", "University of Milan"],
+  "Japan": ["University of Tokyo", "Kyoto University", "Osaka University", "Tohoku University", "Nagoya University"],
+  "Malaysia": ["University of Malaya", "Universiti Putra Malaysia", "Universiti Kebangsaan Malaysia", "Monash University Malaysia"],
+  "Netherlands": ["University of Amsterdam", "Delft University of Technology", "Utrecht University", "Leiden University", "Eindhoven University of Technology", "Erasmus University Rotterdam"],
+  "New Zealand": ["University of Auckland", "University of Otago", "Victoria University of Wellington"],
+  "Norway": ["University of Oslo", "Norwegian University of Science and Technology"],
+  "Poland": ["University of Warsaw", "Jagiellonian University", "Warsaw University of Technology"],
+  "Portugal": ["University of Lisbon", "University of Porto"],
+  "Qatar": ["Qatar University"],
+  "Russia": ["Lomonosov Moscow State University", "Saint Petersburg State University"],
+  "Singapore": ["National University of Singapore", "Nanyang Technological University", "Singapore Management University"],
+  "South Korea": ["Seoul National University", "KAIST", "Yonsei University", "Korea University"],
+  "Spain": ["University of Barcelona", "Autonomous University of Madrid", "Complutense University of Madrid", "Polytechnic University of Catalonia"],
+  "Sweden": ["Lund University", "KTH Royal Institute of Technology", "Uppsala University", "Stockholm University", "Chalmers University of Technology"],
+  "Switzerland": ["ETH Zurich", "University of Zurich", "EPFL", "University of Geneva", "University of Basel"],
+  "Ukraine": ["Igor Sikorsky Kyiv Polytechnic Institute", "Lviv Polytechnic National University"],
+  "United Arab Emirates": ["United Arab Emirates University", "Khalifa University"],
+  "United Kingdom": ["University of Oxford", "University of Cambridge", "Imperial College London", "University College London", "King's College London", "University of Manchester", "University of Edinburgh", "University of Bristol", "University of Birmingham", "University of Leeds"],
+  "United States": ["Harvard University", "University of Michigan", "Georgia Institute of Technology", "Stanford University", "Massachusetts Institute of Technology", "University of California, Berkeley", "University of California, Los Angeles", "Columbia University", "New York University"],
+  "Vietnam": ["Ho Chi Minh City University of Technology (HCMUT)"]
 };
 
 type QuestionType = 'short-answer' | 'paragraph' | 'multiple-choice' | 'checkboxes' | 'dropdown' | 'date' | 'file-upload';
@@ -338,7 +378,7 @@ export default function AgencyRegistrationPage() {
     setError("");
 
     try {
-      const token = localStorage.getItem("authToken");
+      const token = localStorage.getItem("token");
       const user = JSON.parse(localStorage.getItem("user") || "{}");
 
       if (!token || !user.id) {
@@ -428,7 +468,7 @@ export default function AgencyRegistrationPage() {
 
         // Store token in localStorage
         if (data.token) {
-          localStorage.setItem("authToken", data.token);
+          localStorage.setItem("token", data.token);
           localStorage.setItem("user", JSON.stringify(data.user));
         }
 
@@ -451,7 +491,7 @@ export default function AgencyRegistrationPage() {
       setError("");
 
       try {
-        const token = localStorage.getItem("authToken");
+        const token = localStorage.getItem("token");
         const user = JSON.parse(localStorage.getItem("user") || "{}");
 
         if (!token || !user.id) {
@@ -505,7 +545,7 @@ export default function AgencyRegistrationPage() {
       setError("");
 
       try {
-        const token = localStorage.getItem("authToken");
+        const token = localStorage.getItem("token");
         const user = JSON.parse(localStorage.getItem("user") || "{}");
 
         if (!token || !user.id) {
@@ -583,7 +623,7 @@ export default function AgencyRegistrationPage() {
     setError("");
 
     try {
-      const token = localStorage.getItem("authToken");
+      const token = localStorage.getItem("token");
       const user = JSON.parse(localStorage.getItem("user") || "{}");
 
       if (!token || !user.id) {

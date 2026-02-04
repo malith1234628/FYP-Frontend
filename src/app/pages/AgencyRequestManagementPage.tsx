@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { useNavigate } from "react-router-dom";
-import { 
-  Building2, 
+import {
+  Building2,
   ArrowLeft,
   CheckCircle2,
   XCircle,
@@ -14,7 +14,8 @@ import {
   GraduationCap,
   Calendar,
   Search,
-  Filter
+  Filter,
+  Loader2
 } from "lucide-react";
 import { Badge } from "@/app/components/ui/badge";
 import { Input } from "@/app/components/ui/input";
@@ -37,90 +38,32 @@ import {
   SelectValue,
 } from "@/app/components/ui/select";
 
-const studentRequests = [
-  {
-    id: 1,
-    studentName: "Kamal Perera",
-    email: "kamal.perera@email.com",
-    phone: "+94 77 123 4567",
-    country: "United Kingdom",
-    university: "University of Oxford",
-    course: "MSc Computer Science",
-    status: "New",
-    submittedDate: "Jan 25, 2026",
-    gpa: "3.8",
-    ielts: "7.5"
-  },
-  {
-    id: 2,
-    studentName: "Nimali Silva",
-    email: "nimali.silva@email.com",
-    phone: "+94 77 234 5678",
-    country: "Canada",
-    university: "University of Toronto",
-    course: "MBA",
-    status: "New",
-    submittedDate: "Jan 25, 2026",
-    gpa: "3.6",
-    ielts: "7.0"
-  },
-  {
-    id: 3,
-    studentName: "Ravindu Fernando",
-    email: "ravindu.fernando@email.com",
-    phone: "+94 77 345 6789",
-    country: "Australia",
-    university: "University of Melbourne",
-    course: "Master of Engineering",
-    status: "Under Review",
-    submittedDate: "Jan 24, 2026",
-    gpa: "3.7",
-    ielts: "7.0"
-  },
-  {
-    id: 4,
-    studentName: "Tharindu Jayasinghe",
-    email: "tharindu.j@email.com",
-    phone: "+94 77 456 7890",
-    country: "United States",
-    university: "MIT",
-    course: "MS Data Science",
-    status: "Accepted",
-    submittedDate: "Jan 23, 2026",
-    gpa: "3.9",
-    ielts: "8.0"
-  },
-  {
-    id: 5,
-    studentName: "Dilini Rajapaksa",
-    email: "dilini.r@email.com",
-    phone: "+94 77 567 8901",
-    country: "United Kingdom",
-    university: "Imperial College London",
-    course: "MSc Finance",
-    status: "Rejected",
-    submittedDate: "Jan 22, 2026",
-    gpa: "3.3",
-    ielts: "6.5",
-    rejectionReason: "Insufficient IELTS score for the selected program"
-  },
-  {
-    id: 6,
-    studentName: "Sahan Wickramasinghe",
-    email: "sahan.w@email.com",
-    phone: "+94 77 678 9012",
-    country: "Canada",
-    university: "McGill University",
-    course: "PhD Chemistry",
-    status: "Under Review",
-    submittedDate: "Jan 24, 2026",
-    gpa: "3.8",
-    ielts: "7.5"
-  },
-];
+// Map DB status → UI display label
+const statusDisplayMap: Record<string, string> = {
+  open: "New",
+  reviewing_offers: "Under Review",
+  in_progress: "Under Review",
+  agency_selected: "Accepted",
+  completed: "Accepted",
+  cancelled: "Rejected",
+};
+
+// Map course_level → friendly label for the "Course" field
+const levelLabelMap: Record<string, string> = {
+  bachelor: "Bachelor's",
+  master: "Master's",
+  phd: "PhD",
+  diploma: "Diploma",
+};
+
+function formatSubmittedDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+}
 
 export default function AgencyRequestManagementPage() {
   const navigate = useNavigate();
+  const [requests, setRequests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
@@ -130,29 +73,96 @@ export default function AgencyRequestManagementPage() {
   const [rejectionReason, setRejectionReason] = useState("");
   const [additionalDocsRequest, setAdditionalDocsRequest] = useState("");
 
-  const filteredRequests = studentRequests.filter(request => {
-    const matchesSearch = request.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         request.university.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         request.country.toLowerCase().includes(searchQuery.toLowerCase());
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+
+    if (!token || user.user_type !== "agency") {
+      navigate("/agent-login");
+      return;
+    }
+
+    fetch("http://localhost:5003/api/agency/requests", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        // Normalise each row so the rest of the page can use consistent keys
+        const normalised = (data.requests || []).map((r: any) => ({
+          id: r.id,
+          studentName: r.student_name,
+          email: r.email,
+          phone: r.phone || "N/A",
+          country: r.country,
+          university: r.university,
+          course: r.program
+            ? `${r.program}${r.course_level ? ` (${levelLabelMap[r.course_level] || r.course_level})` : ""}`
+            : r.program_level || "N/A",
+          status: statusDisplayMap[r.status] || r.status,
+          submittedDate: formatSubmittedDate(r.submitted_date),
+        }));
+        setRequests(normalised);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [navigate]);
+
+  const filteredRequests = requests.filter((request) => {
+    const matchesSearch =
+      request.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      request.university.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      request.country.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === "All" || request.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
-  const handleAccept = () => {
-    alert(`✅ Request from ${selectedRequest?.studentName} has been accepted!`);
-    setShowAcceptDialog(false);
-    setSelectedRequest(null);
+  const handleAccept = async () => {
+    if (!selectedRequest) return;
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`http://localhost:5003/api/agency/requests/${selectedRequest.id}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: "agency_selected" }),
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        alert(data.message || "Failed to accept request");
+        return;
+      }
+      setRequests((prev) => prev.map((r) => (r.id === selectedRequest.id ? { ...r, status: "Accepted" } : r)));
+      setShowAcceptDialog(false);
+      setSelectedRequest(null);
+    } catch {
+      alert("Network error. Please try again.");
+    }
   };
 
-  const handleReject = () => {
+  const handleReject = async () => {
     if (!rejectionReason.trim()) {
       alert("Please provide a rejection reason");
       return;
     }
-    alert(`❌ Request from ${selectedRequest?.studentName} has been rejected.`);
-    setShowRejectDialog(false);
-    setSelectedRequest(null);
-    setRejectionReason("");
+    if (!selectedRequest) return;
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`http://localhost:5003/api/agency/requests/${selectedRequest.id}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: "cancelled" }),
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        alert(data.message || "Failed to reject request");
+        return;
+      }
+      setRequests((prev) => prev.map((r) => (r.id === selectedRequest.id ? { ...r, status: "Rejected" } : r)));
+      setShowRejectDialog(false);
+      setSelectedRequest(null);
+      setRejectionReason("");
+    } catch {
+      alert("Network error. Please try again.");
+    }
   };
 
   const handleRequestDocs = () => {
@@ -182,11 +192,11 @@ export default function AgencyRequestManagementPage() {
   };
 
   const stats = {
-    total: studentRequests.length,
-    new: studentRequests.filter(r => r.status === "New").length,
-    underReview: studentRequests.filter(r => r.status === "Under Review").length,
-    accepted: studentRequests.filter(r => r.status === "Accepted").length,
-    rejected: studentRequests.filter(r => r.status === "Rejected").length,
+    total: requests.length,
+    new: requests.filter((r) => r.status === "New").length,
+    underReview: requests.filter((r) => r.status === "Under Review").length,
+    accepted: requests.filter((r) => r.status === "Accepted").length,
+    rejected: requests.filter((r) => r.status === "Rejected").length,
   };
 
   return (
@@ -217,6 +227,15 @@ export default function AgencyRequestManagementPage() {
 
       {/* Main Content */}
       <div className="container mx-auto px-6 py-8 max-w-7xl">
+        {loading && (
+          <div className="flex flex-col items-center justify-center py-24">
+            <Loader2 className="w-10 h-10 text-primary animate-spin mb-4" />
+            <p className="text-gray-600">Loading requests...</p>
+          </div>
+        )}
+
+        {!loading && (
+        <>
         {/* Statistics Cards */}
         <div className="grid grid-cols-5 gap-4 mb-6">
           <Card className="border-0 shadow">
@@ -346,18 +365,6 @@ export default function AgencyRequestManagementPage() {
                       </div>
                     </div>
 
-                    {/* Academic Info */}
-                    <div className="flex gap-4 p-3 bg-gray-50 rounded-lg mb-4">
-                      <div>
-                        <p className="text-xs text-gray-500">GPA</p>
-                        <p className="font-semibold text-gray-900">{request.gpa}</p>
-                      </div>
-                      <div className="border-l pl-4">
-                        <p className="text-xs text-gray-500">IELTS Score</p>
-                        <p className="font-semibold text-gray-900">{request.ielts}</p>
-                      </div>
-                    </div>
-
                     {/* Rejection Reason (if rejected) */}
                     {request.status === "Rejected" && request.rejectionReason && (
                       <div className="p-3 bg-red-50 border border-red-200 rounded-lg mb-4">
@@ -422,12 +429,14 @@ export default function AgencyRequestManagementPage() {
               <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <h3 className="text-xl font-semibold text-gray-900 mb-2">No requests found</h3>
               <p className="text-gray-600">
-                {searchQuery || statusFilter !== "All" 
-                  ? "Try adjusting your search or filters" 
+                {searchQuery || statusFilter !== "All"
+                  ? "Try adjusting your search or filters"
                   : "New student requests will appear here"}
               </p>
             </CardContent>
           </Card>
+        )}
+        </>
         )}
       </div>
 

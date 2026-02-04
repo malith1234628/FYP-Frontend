@@ -43,7 +43,7 @@ export default function LoginPage() {
 
       // Store token in localStorage
       if (data.token) {
-        localStorage.setItem("authToken", data.token);
+        localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
       }
 

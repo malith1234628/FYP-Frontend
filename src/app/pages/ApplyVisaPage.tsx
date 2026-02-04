@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/app/components/ui/button";
+import { saveApplicationProgress } from "@/app/utils/applicationProgress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
@@ -8,19 +9,40 @@ import { useNavigate } from "react-router-dom";
 import { GraduationCap, ArrowLeft, Plus, Trash2, Upload, Check } from "lucide-react";
 import { Progress } from "@/app/components/ui/progress";
 import { RadioGroup, RadioGroupItem } from "@/app/components/ui/radio-group";
+import { Slider } from "@/app/components/ui/slider";
 
 export default function ApplyVisaPage() {
   const navigate = useNavigate();
   
+  // Save progress when entering this page
+  useEffect(() => {
+    saveApplicationProgress('apply-visa');
+  }, []);
+  
   // Student Details State
   const [formData, setFormData] = useState({
     country: "",
+    city: "",
     program: "",
     courseLevel: "",
     duration: "",
     courseFee: "",
     livingCost: "",
+    rentUSD: 15000,
+    visaFeeUSD: 1000,
+    insuranceUSD: 2500,
   });
+
+  const citiesByCountry: Record<string, string[]> = {
+    usa: ["New York", "Los Angeles", "San Francisco", "Chicago", "Boston", "Washington DC"],
+    uk: ["London", "Manchester", "Edinburgh", "Birmingham", "Oxford", "Cambridge"],
+    canada: ["Toronto", "Vancouver", "Montreal", "Ottawa", "Calgary"],
+    australia: ["Sydney", "Melbourne", "Brisbane", "Perth", "Adelaide"],
+    germany: ["Berlin", "Munich", "Hamburg", "Frankfurt", "Düsseldorf"],
+  };
+
+  /*
+  // ---------- EDUCATION QUALIFICATIONS STATE & HELPERS (commented out for now) ----------
 
   // O/L State
   const [olExamYear, setOlExamYear] = useState("");
@@ -95,20 +117,89 @@ export default function ApplyVisaPage() {
     setQualifications(updated);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // ---------- END EDUCATION QUALIFICATIONS STATE & HELPERS ----------
+  */
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    navigate("/university-recommendations");
+    setError(null);
+    setIsSubmitting(true);
+
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setError("Session expired. Please log in again.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Map country codes to backend format
+      const countryMap: Record<string, string> = {
+        usa: "USA",
+        uk: "UK",
+        canada: "Canada",
+        australia: "Australia",
+        germany: "Germany",
+      };
+
+      const payload = {
+        destination_country: countryMap[formData.country] || formData.country,
+        city: formData.city,
+        program: formData.program,
+        course_level: formData.courseLevel,
+        duration_years: formData.duration,
+        course_fee_usd: formData.courseFee,
+        living_cost_usd: formData.livingCost,
+        rent_usd: formData.rentUSD,
+        visa_fee_usd: formData.visaFeeUSD,
+        insurance_usd: formData.insuranceUSD,
+      };
+
+      console.log("📤 Sending application payload:", payload);
+
+      const response = await fetch("http://localhost:5003/api/students/applications", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.message || "Failed to save application.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      localStorage.setItem("visa_application", JSON.stringify(data.application));
+      saveApplicationProgress('university-recommendations', { application: data.application });
+      navigate("/university-recommendations");
+    } catch (err) {
+      setError("Network error. Please check your connection and try again.");
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="border-b bg-white">
-        <div className="container mx-auto px-6 py-4 flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
-            <ArrowLeft className="w-5 h-5" />
+        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <GraduationCap className="w-8 h-8 text-primary" />
+            <span className="text-xl font-semibold">Visa Application</span>
+          </div>
+          <Button variant="outline" onClick={() => navigate("/dashboard")}>
+            Go to Dashboard
           </Button>
-          <GraduationCap className="w-8 h-8 text-primary" />
-          <span className="text-xl font-semibold">Visa Application</span>
         </div>
       </header>
 
@@ -123,14 +214,14 @@ export default function ApplyVisaPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* EDUCATION QUALIFICATIONS SECTION */}
+          {/* EDUCATION QUALIFICATIONS SECTION (commented out for now)
           <Card className="border-0 shadow-lg">
             <CardHeader className="bg-gradient-to-r from-blue-50 to-green-50 border-b">
               <CardTitle className="text-2xl">Education Qualifications</CardTitle>
             </CardHeader>
             <CardContent className="pt-6 space-y-6">
               
-              {/* SECTION 1: O/L Results */}
+              SECTION 1: O/L Results
               <div className="space-y-4">
                 <h3 className="text-xl font-bold text-blue-900 flex items-center gap-2 pb-2 border-b">
                   📘 SECTION 1: G.C.E. Ordinary Level (O/L) Results
@@ -236,7 +327,7 @@ export default function ApplyVisaPage() {
                 </div>
               </div>
 
-              {/* SECTION 2: A/L Results */}
+              SECTION 2: A/L Results
               <div className="space-y-4 pt-6 border-t">
                 <h3 className="text-xl font-bold text-green-900 flex items-center gap-2 pb-2 border-b">
                   📗 SECTION 2: G.C.E. Advanced Level (A/L) Results
@@ -399,7 +490,7 @@ export default function ApplyVisaPage() {
                 </div>
               </div>
 
-              {/* SECTION 3: Other Qualifications */}
+              SECTION 3: Other Qualifications
               <div className="space-y-4 pt-6 border-t">
                 <h3 className="text-xl font-bold text-orange-900 flex items-center gap-2 pb-2 border-b">
                   📙 SECTION 3: Other Qualifications
@@ -535,7 +626,7 @@ export default function ApplyVisaPage() {
                 </Button>
               </div>
 
-              {/* SECTION 4: Additional Academic Information */}
+              SECTION 4: Additional Academic Information
               <div className="space-y-4 pt-6 border-t">
                 <h3 className="text-xl font-bold text-purple-900 flex items-center gap-2 pb-2 border-b">
                   🌍 SECTION 4: Additional Academic Information
@@ -623,6 +714,13 @@ export default function ApplyVisaPage() {
               </div>
             </CardContent>
           </Card>
+          END EDUCATION QUALIFICATIONS SECTION */}
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
+              {error}
+            </div>
+          )}
 
           {/* ACADEMIC INFORMATION SECTION */}
           <Card className="border-0 shadow-lg">
@@ -635,18 +733,38 @@ export default function ApplyVisaPage() {
                 <Select
                   value={formData.country}
                   onValueChange={(value) =>
-                    setFormData({ ...formData, country: value })
+                    setFormData({ ...formData, country: value, city: "" })
                   }
                 >
                   <SelectTrigger id="country">
                     <SelectValue placeholder="Select a country" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="usa">United States</SelectItem>
-                    <SelectItem value="uk">United Kingdom</SelectItem>
+                    <SelectItem value="usa">USA</SelectItem>
+                    <SelectItem value="uk">UK</SelectItem>
                     <SelectItem value="canada">Canada</SelectItem>
                     <SelectItem value="australia">Australia</SelectItem>
                     <SelectItem value="germany">Germany</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="city">City</Label>
+                <Select
+                  value={formData.city}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, city: value })
+                  }
+                  disabled={!formData.country}
+                >
+                  <SelectTrigger id="city">
+                    <SelectValue placeholder={formData.country ? "Select a city" : "Select a country first"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(citiesByCountry[formData.country] || []).map((city) => (
+                      <SelectItem key={city} value={city}>{city}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -728,6 +846,68 @@ export default function ApplyVisaPage() {
                   />
                 </div>
               </div>
+
+              <div className="space-y-6">
+                {/* Rent */}
+                <div className="space-y-3">
+                  <Label>Rent (USD)</Label>
+                  <div className="flex items-center gap-3">
+                    <Slider
+                      min={0}
+                      max={50000}
+                      step={500}
+                      value={[formData.rentUSD]}
+                      onValueChange={(value) => setFormData({ ...formData, rentUSD: value[0] })}
+                      className="flex-1"
+                    />
+                    <span className="text-sm font-medium text-primary w-24 text-right">${formData.rentUSD.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-400">
+                    <span>$0</span>
+                    <span>$50,000</span>
+                  </div>
+                </div>
+
+                {/* Visa Fee */}
+                <div className="space-y-3">
+                  <Label>Visa Fee (USD)</Label>
+                  <div className="flex items-center gap-3">
+                    <Slider
+                      min={0}
+                      max={5000}
+                      step={100}
+                      value={[formData.visaFeeUSD]}
+                      onValueChange={(value) => setFormData({ ...formData, visaFeeUSD: value[0] })}
+                      className="flex-1"
+                    />
+                    <span className="text-sm font-medium text-primary w-24 text-right">${formData.visaFeeUSD.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-400">
+                    <span>$0</span>
+                    <span>$5,000</span>
+                  </div>
+                </div>
+
+                {/* Insurance */}
+                <div className="space-y-3">
+                  <Label>Insurance (USD)</Label>
+                  <div className="flex items-center gap-3">
+                    <Slider
+                      min={0}
+                      max={10000}
+                      step={200}
+                      value={[formData.insuranceUSD]}
+                      onValueChange={(value) => setFormData({ ...formData, insuranceUSD: value[0] })}
+                      className="flex-1"
+                    />
+                    <span className="text-sm font-medium text-primary w-24 text-right">${formData.insuranceUSD.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-400">
+                    <span>$0</span>
+                    <span>$10,000</span>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
@@ -740,8 +920,8 @@ export default function ApplyVisaPage() {
             >
               Cancel
             </Button>
-            <Button type="submit" className="flex-1 bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700">
-              Continue to University Recommendations
+            <Button type="submit" disabled={isSubmitting} className="flex-1 bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700">
+              {isSubmitting ? "Saving..." : "Continue to University Recommendations"}
             </Button>
           </div>
         </form>
